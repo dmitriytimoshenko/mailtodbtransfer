@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:camel="http://camel.apache.org/schema/spring"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://camel.apache.org/schema/spring http://camel.apache.org/schema/spring/camel-spring.xsd">
+
+
+    <!-- Компонент activemq -->
+    <bean id="jms" class = "org.apache.camel.component.jms.JmsComponent">
+        <property name="connectionFactory">
+            <bean class="org.apache.activemq.ActiveMQConnectionFactory">
+                <property name="brokerURL" value="tcp://localhost:61616"/>
+            </bean>
+        </property>
+    </bean>
+
+    <!-- Dead letter queue -->
+    <bean id="deadLetterQueue" class="org.apache.camel.builder.DeadLetterChannelBuilder">
+        <property name="deadLetterUri" value="jms:queue:dead"/>
+        <property name="redeliveryPolicy" ref="redeliveryPolicy"/>
+    </bean>
+
+    <!-- Политика переотправки -->
+    <bean id="redeliveryPolicy" class="org.apache.camel.processor.errorhandler.RedeliveryPolicy">
+        <property name="maximumRedeliveries" value="0"/>
+        <property name="redeliveryDelay" value="1000"/>
+        <property name="retryAttemptedLogLevel" value="ERROR"/>
+    </bean>
+
+
+    <!-- Роуты -->
+    <camel:camelContext id="notes" errorHandlerRef="deadLetterQueue" >
+        <camel:route>
+            <camel:from uri="file:C:/outputfolder"/>
+            <camel:choice>
+                <camel:when>
+                    <camel:simple>${header.CamelFileName} regex '^.*xml$'</camel:simple>
+                    <camel:to uri="jms:queue:xmlqueue"/>
+                </camel:when>
+                <camel:when>
+                    <camel:simple>${header.CamelFileName} regex '^.*txt$'</camel:simple>
+                    <camel:to uri="jms:queue:txtqueue"/>
+                </camel:when>
+                <camel:otherwise>
+                    <camel:throwException exceptionType="java.lang.Exception" message="Something is wrong"/>
+                </camel:otherwise>
+            </camel:choice>
+        </camel:route>
+        <camel:route>
+            <camel:from uri="jms:queue:xmlqueue"/>
+            <camel:to uri="file:C:/inputfolder"/>
+        </camel:route>
+        <camel:route>
+            <camel:from uri="jms:queue:txtqueue"/>
+            <camel:to uri="file:C:/inputfolder"/>
+        </camel:route>
+    </camel:camelContext>
+</beans>
