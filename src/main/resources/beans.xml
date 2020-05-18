@@ -7,28 +7,40 @@
 
     <!-- Начальные настройки Bitronix -->
     <bean id="btmConfig" factory-method="getConfiguration" class="bitronix.tm.TransactionManagerServices">
-        <property name="serverId" value="jvm-1"/>
+        <property name="serverId" value="jvm 1"/>
         <property name="logPart1Filename" value="C:/BitronixTM/tx-logs/part1.btm"/>
         <property name="logPart2Filename" value="C:/BitronixTM/tx-logs/part2.btm"/>
     </bean>
+
     <!-- создание менеджера Bitronix -->
     <bean id="bitronixTransactionManager" factory-method="getTransactionManager" class="bitronix.tm.TransactionManagerServices"
           depends-on="btmConfig" destroy-method="shutdown"/>
 
-    <!-- Менеджер транзации Spring -->
-    <bean id="springTxManager" class="org.springframework.transaction.jta.JtaTransactionManager">
+    <bean id="jtaTM" class="org.springframework.transaction.jta.JtaTransactionManager">
         <property name="transactionManager" ref="bitronixTransactionManager"/>
         <property name="userTransaction" ref="bitronixTransactionManager"/>
     </bean>
 
+
+
     <!-- Компонент activemq -->
+
+    <bean id="activeMQXAConnectionFactory" class="org.apache.activemq.ActiveMQXAConnectionFactory">
+        <property name="maxThreadPoolSize" value="20"/>
+        <property name="brokerURL" value="tcp://localhost:61616"/>
+    </bean>
+
+
+    <bean id="jmsPoolConFactory" class="org.apache.activemq.pool.XaPooledConnectionFactory">
+        <property name="transactionManager" ref="bitronixTransactionManager"/>
+        <property name="connectionFactory" ref="activeMQXAConnectionFactory"/>
+    </bean>
+
+
     <bean id="jms" class = "org.apache.camel.component.jms.JmsComponent">
-        <property name="transacted" value="true"/>
-        <property name="connectionFactory">
-            <bean class="org.apache.activemq.ActiveMQConnectionFactory">
-                <property name="brokerURL" value="tcp://localhost:61616"/>
-            </bean>
-        </property>
+        <property name="transacted" value="false"/>
+        <property name="transactionManager" ref="jtaTM"/>
+        <property name="connectionFactory" ref="activeMQXAConnectionFactory"/>
     </bean>
 
 
@@ -38,12 +50,19 @@
     </bean>
 
 
-
-    <bean id="postgreDS" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
-        <property name="driverClassName" value="org.postgresql.Driver"/>
-        <property name="url" value="jdbc:postgresql://localhost:5432/XMLEntity"/>
-        <property name="username" value="postgres"/>
-        <property name="password" value="postgres"/>
+    <bean id="postgreDS" class="bitronix.tm.resource.jdbc.PoolingDataSource">
+        <property name="uniqueName" value="dspool"/>
+        <property name="className" value="org.postgresql.xa.PGXADataSource"/>
+        <property name="maxPoolSize" value="20"/>
+        <property name="driverProperties">
+            <props>
+                <prop key="user">postgres</prop>
+                <prop key="password">postgres</prop>
+                <prop key="serverName">localhost</prop>
+                <prop key="portNumber">5432</prop>
+                <prop key="dataBaseName">XMLEntity</prop>
+            </props>
+        </property>
     </bean>
 
     <!-- Dead letter queue -->
@@ -59,14 +78,13 @@
         <property name="retryAttemptedLogLevel" value="ERROR"/>
     </bean>
 
-    <!-- Процессоры и Агрегаторы -->
+    <!-- Процессоры -->
     <bean id="sendProcessor" class="processors.SendProcessor"/>
-    <bean id="myAggregationStrategy" class="processors.MyAggregationStrategy"/>
 
 
     <!-- Роуты -->
     <camel:camelContext id="notes" errorHandlerRef="deadLetterQueue" >
-        <camel:route >
+        <camel:route>
             <camel:from uri="file:C:/outputfolder"/>
             <camel:transacted/>
             <camel:choice>
@@ -88,6 +106,7 @@
                     <camel:throwException exceptionType="java.lang.Exception" message="Something is wrong"/>
                 </camel:otherwise>
             </camel:choice>
+            <camel:process ref="sendProcessor"/>
         </camel:route>
 
         <camel:route>
