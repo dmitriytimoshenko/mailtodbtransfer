@@ -9,10 +9,10 @@ import java.util.regex.Pattern;
 import static org.apache.camel.model.dataformat.YAMLTypeFilterType.regexp;
 
 public class SendProcessor implements Processor {
-    int txtCount;
-    int xmlCount;
-    int otherCount;
-    int allCount;
+    int txtCount = 0;
+    int xmlCount = 0;
+    int otherCount = 0;
+    int allCount = 0;
 
     @Override
     public void process(Exchange exchange) throws Exception {
