@@ -24,7 +24,7 @@ public class App {
             System.out.println(main.getConfigurationClasses());
 
         } catch (Exception e) {
-            e.printStackTrace();
+            System.out.println("Ошибка работы контекста Camel");
         }
 
     }

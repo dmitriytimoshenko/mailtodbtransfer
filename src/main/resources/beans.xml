@@ -5,13 +5,45 @@
        xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://camel.apache.org/schema/spring http://camel.apache.org/schema/spring/camel-spring.xsd">
 
 
+    <!-- Начальные настройки Bitronix -->
+    <bean id="btmConfig" factory-method="getConfiguration" class="bitronix.tm.TransactionManagerServices">
+        <property name="serverId" value="jvm-1"/>
+        <property name="logPart1Filename" value="C:/BitronixTM/tx-logs/part1.btm"/>
+        <property name="logPart2Filename" value="C:/BitronixTM/tx-logs/part2.btm"/>
+    </bean>
+    <!-- создание менеджера Bitronix -->
+    <bean id="bitronixTransactionManager" factory-method="getTransactionManager" class="bitronix.tm.TransactionManagerServices"
+          depends-on="btmConfig" destroy-method="shutdown"/>
+
+    <!-- Менеджер транзации Spring -->
+    <bean id="springTxManager" class="org.springframework.transaction.jta.JtaTransactionManager">
+        <property name="transactionManager" ref="bitronixTransactionManager"/>
+        <property name="userTransaction" ref="bitronixTransactionManager"/>
+    </bean>
+
     <!-- Компонент activemq -->
     <bean id="jms" class = "org.apache.camel.component.jms.JmsComponent">
+        <property name="transacted" value="true"/>
         <property name="connectionFactory">
             <bean class="org.apache.activemq.ActiveMQConnectionFactory">
                 <property name="brokerURL" value="tcp://localhost:61616"/>
             </bean>
         </property>
+    </bean>
+
+
+    <!--SQL компонент Camel + PosgreSQL DataSourse -->
+    <bean id="sql" class="org.apache.camel.component.sql.SqlComponent">
+        <property name="dataSource" ref="postgreDS"/>
+    </bean>
+
+
+
+    <bean id="postgreDS" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+        <property name="driverClassName" value="org.postgresql.Driver"/>
+        <property name="url" value="jdbc:postgresql://localhost:5432/XMLEntity"/>
+        <property name="username" value="postgres"/>
+        <property name="password" value="postgres"/>
     </bean>
 
     <!-- Dead letter queue -->
@@ -27,11 +59,16 @@
         <property name="retryAttemptedLogLevel" value="ERROR"/>
     </bean>
 
+    <!-- Процессоры и Агрегаторы -->
+    <bean id="sendProcessor" class="processors.SendProcessor"/>
+    <bean id="myAggregationStrategy" class="processors.MyAggregationStrategy"/>
+
 
     <!-- Роуты -->
     <camel:camelContext id="notes" errorHandlerRef="deadLetterQueue" >
-        <camel:route>
+        <camel:route >
             <camel:from uri="file:C:/outputfolder"/>
+            <camel:transacted/>
             <camel:choice>
                 <camel:when>
                     <camel:simple>${header.CamelFileName} regex '^.*xml$'</camel:simple>
@@ -40,19 +77,28 @@
                 <camel:when>
                     <camel:simple>${header.CamelFileName} regex '^.*txt$'</camel:simple>
                     <camel:to uri="jms:queue:txtqueue"/>
+                   <!-- <camel:aggregate strategyRef="myAggregationStrategy" completionSize="4">
+                        <camel:correlationExpression>
+                            <camel:header>MyMSG</camel:header>
+                        </camel:correlationExpression>
+                        <camel:to uri="jms:queue:txtqueue"/>
+                    </camel:aggregate> -->
                 </camel:when>
                 <camel:otherwise>
                     <camel:throwException exceptionType="java.lang.Exception" message="Something is wrong"/>
                 </camel:otherwise>
             </camel:choice>
         </camel:route>
+
         <camel:route>
             <camel:from uri="jms:queue:xmlqueue"/>
             <camel:to uri="file:C:/inputfolder"/>
         </camel:route>
         <camel:route>
             <camel:from uri="jms:queue:txtqueue"/>
-            <camel:to uri="file:C:/inputfolder"/>
+            <camel:log message="We recived ${body}"/>
+            <camel:convertBodyTo type="String"/>
+            <camel:to uri="sql:insert into TEXT (id_col, string) values (nextval('text_id_col_seq'), :#${body});"/>
         </camel:route>
     </camel:camelContext>
 </beans>
