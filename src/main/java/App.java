@@ -1,31 +1,16 @@
-import org.apache.camel.CamelContext;
-import org.apache.camel.impl.DefaultCamelContext;
-import org.apache.camel.main.Main;
-import org.springframework.context.support.AbstractApplicationContext;
+
+
 import org.springframework.context.support.ClassPathXmlApplicationContext;
+import org.springframework.context.support.FileSystemXmlApplicationContext;
 
 public class App {
     public static void main(String[] args) {
-        AbstractApplicationContext ctx = new ClassPathXmlApplicationContext("beans.xml");
-        /*CamelContext context = new DefaultCamelContext();
-        context.start();
-        try {
-            Thread.sleep(4000);
-        } catch (Exception e) {
-            e.printStackTrace();
+  /*      if (System.getProperty("config.path") == null) {
+            System.setProperty("config.path", "C:/JavaProjects/source/diploma/mailtodbtransfer/target/SpamTransfer/config/");
         }
-        context.stop();
-        */
-        Main main = new Main();
-        main.configure();
+*/
+        ClassPathXmlApplicationContext ctx = new ClassPathXmlApplicationContext("beans.xml");
 
-        try {
-            main.run(args);
-            System.out.println(main.getConfigurationClasses());
-
-        } catch (Exception e) {
-            System.out.println("Ошибка работы контекста Camel");
-        }
-
+        ctx.start();
     }
 }

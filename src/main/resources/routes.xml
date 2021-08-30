@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:camel="http://camel.apache.org/schema/spring"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://camel.apache.org/schema/spring
+       http://camel.apache.org/schema/spring/camel-spring.xsd">
+
+
+    <!-- SSL -->
+    <camel:sslContextParameters id="sslContextParameters">
+        <camel:secureSocketProtocolsFilter>
+            <camel:include>imap.gmail.com</camel:include>
+        </camel:secureSocketProtocolsFilter>
+    </camel:sslContextParameters>
+
+    <!-- Роуты -->
+
+    <camel:camelContext id="notes" errorHandlerRef="deadLetterQueue" >
+        <!--
+                <camel:route>
+                    <camel:from uri="file:C:/outputfolder"/>
+                    <camel:transacted/>
+                    <camel:choice>
+                        <camel:when>
+                            <camel:simple>${header.CamelFileName} regex '^.*xml$'</camel:simple>
+                            <camel:to uri="jms:queue:xmlqueue"/>
+                        </camel:when>
+                        <camel:when>
+                            <camel:simple>${header.CamelFileName} regex '^.*txt$'</camel:simple>
+                            <camel:to uri="jms:queue:txtqueue"/>
+                             <camel:aggregate strategyRef="myAggregationStrategy" completionSize="4">
+                                 <camel:correlationExpression>
+                                     <camel:header>MyMSG</camel:header>
+                                 </camel:correlationExpression>
+                                 <camel:to uri="jms:queue:txtqueue"/>
+                             </camel:aggregate>
+                        </camel:when>
+                        <camel:otherwise>
+                            <camel:throwException exceptionType="java.lang.Exception" message="Something is wrong"/>
+                        </camel:otherwise>
+                    </camel:choice>
+                    <camel:process ref="sendProcessor"/>
+                </camel:route>
+
+                <camel:route>
+                    <camel:from uri="jms:queue:xmlqueue"/>
+                    <camel:to uri="file:C:/inputfolder"/>
+                </camel:route>
+                <camel:route>
+                    <camel:from uri="jms:queue:txtqueue"/>
+                    <camel:log message="We recived ${body}"/>
+                    <camel:convertBodyTo type="String"/>
+                    <camel:to uri="sql:insert into TEXT (id_col, string) values (nextval('text_id_col_seq'), :#${body});"/>
+                </camel:route>
+        -->
+
+        <!-- Из почты google в ActiveMO-->
+        <camel:route id="gmailToActiveMQ">
+        <camel:from uri="imaps://imap.gmail.com:993
+                    ?username=somemail@gmail.com
+                    &amp;password=pass
+                    &amp;consumer.initialDelay=1000
+                    &amp;fetchSize=1
+                    &amp;unseen=true
+                    &amp;mail.imaps.ssl.trust=imap.gmail.com
+                    &amp;folderName=[Gmail]/Спам"/>
+            <camel:transacted/>
+            <camel:log message="All gooood"/>
+ <!--           <camel:process ref="viewMailsProcessor"/>  -->
+            <camel:to uri="jms:queue:mailQueue"/>
+        </camel:route>
+
+        <!-- Из ActiveMQ в БД -->
+        <camel:route id="activemqToDatabase">
+            <camel:from uri="jms:queue:mailQueue"/>
+           <camel:transacted/>
+            <camel:log message="Transfer to DB"/>
+           <camel:bean ref="messageDataDAOImpl" method="insertExchange"/>
+        </camel:route>
+
+    </camel:camelContext>
+
+
+
+</beans>

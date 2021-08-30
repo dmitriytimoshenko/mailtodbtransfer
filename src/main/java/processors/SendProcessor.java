@@ -14,25 +14,30 @@ public class SendProcessor implements Processor {
     int otherCount = 0;
     int allCount = 0;
 
-    @Override
     public void process(Exchange exchange) throws Exception {
 
         System.out.println(exchange.getIn().getHeaders().toString());
 
-        if(isTxt(exchange.getIn().getHeader("CamelFileName").toString()) == true) {
-            txtCount =+ 1;
-        } else if (isXml(exchange.getIn().getHeader("CamelFileName").toString()) == true) {
-            xmlCount =+ 1;
-        } else {
-            otherCount =+ 1;
+        if(isTxt(exchange.getIn().getHeader("CamelFileName").toString())) {
+            txtCount ++;
         }
 
-        allCount =+ 1;
+        if (isXml(exchange.getIn().getHeader("CamelFileName").toString()) == true) {
+            xmlCount ++;
+        }
+
+        if (isXml(exchange.getIn().getHeader("CamelFileName").toString()) != true && isTxt(exchange.getIn().getHeader("CamelFileName").toString()) != true) {
+            otherCount ++;
+        }
+
+        allCount = txtCount + xmlCount + otherCount;
 
         System.out.println("All .txt masseges: " + txtCount);
         System.out.println("All .xml masseges: " + xmlCount);
         System.out.println("All other masseges: " + otherCount);
         System.out.println("All masseges: " + allCount);
+
+        exchange.getOut().getHeaders().toString();
     }
 
     public boolean isTxt(String s) {
@@ -41,7 +46,7 @@ public class SendProcessor implements Processor {
         return m.matches();
     }
     public boolean isXml(String s) {
-        Pattern p = Pattern.compile("^.*txt$");
+        Pattern p = Pattern.compile("^.*xml$");
         Matcher m = p.matcher(s);
         return m.matches();
     }
